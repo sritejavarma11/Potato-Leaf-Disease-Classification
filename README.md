@@ -1,39 +1,107 @@
 # Potato Leaf Disease Classification
-### Hybrid ConvNeXt + Transformer Architecture
 
-## 🌿 Project Overview
-This project focuses on the early detection and classification of potato leaf diseases using deep learning. By identifying diseases like Early Blight and Late Blight accurately, farmers can take timely action to prevent significant crop loss.
+Hybrid ConvNeXt + Transformer classifier for potato leaf disease, built in
+TensorFlow/Keras.
 
-The model utilizes a sophisticated **hybrid architecture** that combines Convolutional Neural Networks (CNNs) for local feature extraction with Transformers for global context understanding.
+## Overview
 
-## 🏗️ Model Architecture
-The classifier uses a custom hybrid approach built with TensorFlow and Keras:
+Classifies potato leaf images into three classes — Early Blight, Late Blight,
+and Healthy. The architecture pairs a pretrained CNN backbone for local texture
+and lesion detail with a self-attention block that lets the model relate
+features across spatially distant regions of the leaf.
 
-* **Feature Extractor (CNN):** A pre-trained **ConvNeXtTiny** backbone (without the top layers) is used to capture fine spatial details and textures of leaf lesions.
-* **Contextual Layer (Transformer):** A custom **Multi-Head Attention** encoder block follows the CNN. This allows the model to analyze global dependencies across different parts of the leaf image.
-* **Classification Head:** A Multi-Layer Perceptron (MLP) consisting of Global Average Pooling, a Dropout layer (0.3) for regularization, and a Dense layer (128 units) leading to a Softmax output.
+## Architecture
 
-## 📊 Dataset & Performance
-- **Source:** PlantVillage dataset.
-- **Classes:** 3 (Early Blight, Late Blight, and Healthy).
-- **Training Size:** 5,403 images.
-- **Validation Size:** 763 images.
+| Component | Detail |
+|---|---|
+| Backbone | ConvNeXt-Tiny, ImageNet-pretrained, **frozen** (`trainable=False`) |
+| Feature map | 7 × 7 × 768, reshaped to a 49-token sequence |
+| Attention | 1 multi-head self-attention block, 4 heads, `key_dim=256`, residual connections + LayerNorm |
+| Feed-forward | Dense(256, ReLU) → Dense(768), residual |
+| Head | GlobalAveragePooling1D → Dropout(0.3) → Dense(128, ReLU) → Dense(3, softmax) |
+| Parameters | 31.5M total, **3.6M trainable** (27.8M frozen in the backbone) |
 
-### Results after 20 Epochs:
+The backbone is frozen throughout — there is no fine-tuning stage. All learning
+happens in the attention block and MLP head.
+
+## Data
+
+[PlantVillage](https://www.kaggle.com/datasets/emmarex/plantdisease), potato subset.
+
+| Split | Images |
+|---|---|
+| Train | 5,403 |
+| Validation | 763 |
+
+Input resolution 224 × 224, batch size 32. Images are passed in the [0, 255]
+range, since Keras ConvNeXt applies its own normalization internally.
+
+## Results
+
+Trained for 20 epochs with Adam (default LR) and categorical cross-entropy.
+
 | Metric | Value |
-| :--- | :--- |
-| **Training Accuracy** | ~99.6% |
-| **Validation Accuracy** | **~97.4%** |
-| **Test Loss** | 0.20 |
+|---|---|
+| Validation accuracy (`model.evaluate`, final model) | **97.9%** |
+| Validation loss | 0.20 |
+| Final-epoch training accuracy | 99.6% |
 
-## 🛠️ Technologies Used
-- **Language:** Python
-- **Libraries:** TensorFlow, Keras, Keras-CV, NumPy, Matplotlib
-- **Platform:** Google Colab (GPU Accelerated)
+Evaluated with a per-class confusion matrix, precision/recall/F1 via
+`classification_report`, and per-class ROC-AUC — not accuracy alone.
 
-## 🚀 How to Run
-1. Clone this repository.
-2. Open the `.ipynb` file in Google Colab.
-3. Ensure you have the dependencies installed:
-   ```bash
-   pip install tensorflow keras-cv
+> Note on which number to quote: the final training epoch reported 97.4%
+> validation accuracy, `model.evaluate()` on the same set returned 97.9%, and
+> the best epoch reached 98.2%. The 97.9% figure above is the saved final model
+> evaluated explicitly. There is currently no separate test split.
+
+## Known limitations
+
+Recorded honestly rather than omitted:
+
+- **No held-out test set.** Only train and validation splits exist, so the
+  reported figure comes from a set observed during training.
+- **No ablation.** The attention block adds ~3.1M parameters, but the model was
+  never trained without it, so its contribution is unmeasured. A frozen backbone
+  with a plain pooling head is the missing baseline.
+- **Overfitting is not controlled.** Validation loss rises from 0.077 (epoch 3)
+  to 0.386 (epoch 13) while training accuracy climbs toward 0.997. There is no
+  early stopping, LR schedule, or best-checkpoint saving — the final epoch is
+  kept regardless of whether it was the best.
+- **No augmentation.** `keras_cv` is imported but unused.
+- **PlantVillage is a lab-condition dataset.** Single leaves on uniform
+  backgrounds. High accuracy here is expected and is known not to transfer to
+  field photographs with natural lighting, occlusion, and cluttered backgrounds.
+
+## Repository
+
+- `ConvNeXtTiny(CNN)+Transformer+MLP_Classifier.ipynb` — full pipeline: data
+  loading, model definition, training, evaluation, and inference.
+
+## Running it
+
+```bash
+pip install tensorflow keras-cv
+```
+
+Open the notebook in Google Colab with a GPU runtime. The dataset is expected at
+`DATA_DIR` with this structure:
+
+```
+PlantVillage/
+├── train/
+│   ├── Early_Blight/
+│   ├── Late_Blight/
+│   └── Healthy/
+└── val/
+    ├── Early_Blight/
+    ├── Late_Blight/
+    └── Healthy/
+```
+
+## Next steps
+
+- Ablate the attention block against a pooling-only baseline
+- Add a held-out test split and report test accuracy
+- Add `EarlyStopping` and `ModelCheckpoint` on validation loss
+- Unfreeze the top ConvNeXt stages and fine-tune at a low learning rate
+- Evaluate on field-condition images to measure the domain gap
