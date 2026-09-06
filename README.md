@@ -58,7 +58,7 @@ Evaluated with a per-class confusion matrix, precision/recall/F1 via
 
 Recorded honestly rather than omitted:
 
-- **No held-out test set.** Only train and validation splits exist, so the
+- **No held-out test set.** Only train and validation splits exist. The validation set was never trained on, but it was scored every epoch and used to select the reported figure, so it is not a clean held-out estimate.
   reported figure comes from a set observed during training.
 - **No ablation.** The attention block adds ~3.1M parameters, but the model was
   never trained without it, so its contribution is unmeasured. A frozen backbone
