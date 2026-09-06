@@ -74,7 +74,7 @@ Recorded honestly rather than omitted:
 
 ## Repository
 
-- `ConvNeXtTiny(CNN)+Transformer+MLP_Classifier.ipynb` — full pipeline: data
+- `ConvNeXtTiny(CNN)+Transformer+MLP_Classifier_pynb.ipynb` — full pipeline: data
   loading, model definition, training, evaluation, and inference.
 
 ## Running it
